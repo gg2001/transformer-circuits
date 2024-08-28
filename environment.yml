@@ -27,7 +27,6 @@ dependencies:
   - mpmath=1.3.0=pyhd8ed1ab_0
   - ncurses=6.5=h7bae524_1
   - networkx=3.3=pyhd8ed1ab_1
-  - numpy=2.1.0=py311h4268184_0
   - openssl=3.3.1=h8359307_3
   - pip=24.2=pyhd8ed1ab_0
   - python=3.11.9=h932a869_0_cpython
@@ -39,8 +38,63 @@ dependencies:
   - sympy=1.13.2=pypyh2585a3b_103
   - tk=8.6.13=h5083fa2_1
   - typing_extensions=4.12.2=pyha770c72_0
-  - tzdata=2024a=h8827d51_1
   - wheel=0.44.0=pyhd8ed1ab_0
   - xz=5.2.6=h57fd34a_0
   - yaml=0.2.5=h3422bc3_2
+  - pip:
+      - accelerate==0.33.0
+      - aiohappyeyeballs==2.4.0
+      - aiohttp==3.10.5
+      - aiosignal==1.3.1
+      - attrs==24.2.0
+      - beartype==0.14.1
+      - better-abc==0.0.3
+      - certifi==2024.7.4
+      - charset-normalizer==3.3.2
+      - click==8.1.7
+      - datasets==2.21.0
+      - dill==0.3.8
+      - docker-pycreds==0.4.0
+      - einops==0.8.0
+      - fancy-einsum==0.0.3
+      - frozenlist==1.4.1
+      - fsspec==2024.6.1
+      - gitdb==4.0.11
+      - gitpython==3.1.43
+      - huggingface-hub==0.24.6
+      - idna==3.8
+      - jaxtyping==0.2.33
+      - markdown-it-py==3.0.0
+      - mdurl==0.1.2
+      - multidict==6.0.5
+      - multiprocess==0.70.16
+      - numpy==1.26.4
+      - packaging==24.1
+      - pandas==2.2.2
+      - platformdirs==4.2.2
+      - protobuf==5.27.4
+      - psutil==6.0.0
+      - pyarrow==17.0.0
+      - pygments==2.18.0
+      - python-dateutil==2.9.0.post0
+      - pytz==2024.1
+      - regex==2024.7.24
+      - requests==2.32.3
+      - rich==13.8.0
+      - safetensors==0.4.4
+      - sentencepiece==0.2.0
+      - sentry-sdk==2.13.0
+      - setproctitle==1.3.3
+      - six==1.16.0
+      - smmap==5.0.1
+      - tokenizers==0.19.1
+      - tqdm==4.66.5
+      - transformer-lens==2.4.0
+      - transformers==4.44.2
+      - typeguard==2.13.3
+      - tzdata==2024.1
+      - urllib3==2.2.2
+      - wandb==0.17.7
+      - xxhash==3.5.0
+      - yarl==1.9.4
 prefix: /Users/gge/gg2001/transformer-circuits/.conda

@@ -118,7 +118,11 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         qkv = (
             ln_1 @ heads["c_attn_weight"] + heads["c_attn_bias"]
         )  # (batch_size, token_len, n_embd * 3)
-        q, k, v = qkv.split(n_embd, dim=-1)  # (batch_size, token_len, n_embd)
+        q, k, v = (
+            qkv[..., :n_embd],
+            qkv[..., n_embd : 2 * n_embd],
+            qkv[..., 2 * n_embd :],
+        )  # (batch_size, token_len, n_embd)
 
         # Separate the heads
         q = q.view(batch_size, token_len, n_head, d_head).transpose(

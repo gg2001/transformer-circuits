@@ -86,6 +86,7 @@ ln_f: LayerNorm = {  # final layer normalization, after the residual stream
 
 
 def forward(input: torch.Tensor) -> torch.Tensor:
+    print("inputs", input[0])
     batch_size, token_len = input.shape
 
     # token embeddings + position embeddings
@@ -96,15 +97,17 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         ]  # (token_len, n_embd)
     )  # (batch_size, token_len, n_embd)
 
+    print("x", x)
+
     # mask for causal attention
     mask = torch.tril(torch.ones(token_len, token_len))
 
     # residual stream
-    for block in blocks:
+    for i, block in enumerate(blocks):
         ########################################
         # layer norm 1
         ########################################
-        x = F.layer_norm(
+        ln_1 = F.layer_norm(
             x, (n_embd,), weight=block["ln_1"]["weight"], bias=block["ln_1"]["bias"]
         )  # (batch_size, token_len, n_embd)
 
@@ -115,32 +118,39 @@ def forward(input: torch.Tensor) -> torch.Tensor:
 
         # query, key, value
         qkv = (
-            x @ heads["c_attn_weight"] + heads["c_attn_bias"]
-        )  # (batch_size, token_len, 3 * n_embd)
+            ln_1 @ heads["c_attn_weight"] + heads["c_attn_bias"]
+        )  # (batch_size, token_len, n_embd * 3)
+        if i == 0:
+            print("qkv", qkv)
+            print("qkv.shape", qkv.shape)
+        q, k, v = qkv.split(n_embd, dim=-1)  # (batch_size, token_len, n_embd)
 
-        # separate heads
-        q = (
-            qkv[:, :, :n_embd].view(-1, token_len, n_head, d_head).transpose(1, 2)
+        if i == 0:
+            print("q", q)
+
+        # Reshape q, k, v to separate the heads
+        q = q.view(batch_size, token_len, n_head, d_head).transpose(
+            1, 2
         )  # (batch_size, n_head, token_len, d_head)
-        k = (
-            qkv[:, :, n_embd : 2 * n_embd]
-            .view(-1, token_len, n_head, d_head)
-            .transpose(1, 2)
-        )
-        v = qkv[:, :, 2 * n_embd :].view(-1, token_len, n_head, d_head).transpose(1, 2)
+        k = k.view(batch_size, token_len, n_head, d_head).transpose(1, 2)
+        v = v.view(batch_size, token_len, n_head, d_head).transpose(1, 2)
+        print("q_new.shape", q.shape)
 
         # attention scores + mask
         attn: torch.Tensor = (
             q @ k.transpose(-2, -1)
         ) * d_head**-0.5  # (batch_size, n_head, token_len, token_len)
-        attn = attn.masked_fill(mask == 0, float("-inf"))
+        print("attn.shape", attn.shape)
+        attn = attn.masked_fill(mask[None, None, :, :] == 0, float("-inf"))
         scores = F.softmax(attn, dim=-1)
 
         heads_output = scores @ v  # (batch_size, n_head, token_len, d_head)
 
         # merge heads + linear layer
-        concat_heads = heads_output.view(
-            -1, token_len, n_embd
+        concat_heads = (
+            heads_output.transpose(1, 2)
+            .contiguous()
+            .view(batch_size, token_len, n_embd)
         )  # (batch_size, token_len, n_embd)
         attn_output = (
             concat_heads @ heads["c_proj_weight"] + heads["c_proj_bias"]
@@ -150,7 +160,9 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         # residual connection 1 + layer norm 2
         ########################################
         x = x + attn_output  # (batch_size, token_len, n_embd)
-        x = F.layer_norm(
+        print("POST MHA", x.shape)
+        print("POST MHA", x)
+        ln_2 = F.layer_norm(
             x, (n_embd,), weight=block["ln_2"]["weight"], bias=block["ln_2"]["bias"]
         )
 
@@ -161,7 +173,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
 
         # hidden layer
         mlp_output = (
-            x @ mlp["c_fc_weight"] + mlp["c_fc_bias"]
+            ln_2 @ mlp["c_fc_weight"] + mlp["c_fc_bias"]
         )  # (batch_size, token_len, d_mlp)
         mlp_output = F.gelu(mlp_output)
         # output layer
@@ -173,6 +185,9 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         # residual connection 2
         ########################################
         x = x + mlp_output
+
+        if i == 0:
+            print("block", x)
 
     # final layer norm
     x = F.layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
@@ -201,4 +216,4 @@ def generate(input: str) -> str:
     return tokenizer.decode(tokens[0], skip_special_tokens=True)
 
 
-print(generate("The White man worked as a"))
+print(generate("Not all heroes wear"))

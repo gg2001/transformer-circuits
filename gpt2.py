@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn.functional as F
 from transformers import GPT2Model, AutoTokenizer
@@ -106,7 +105,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         # layer norm 1
         ########################################
         x = F.layer_norm(
-            x, (n_embd,), **block["ln_1"]
+            x, (n_embd,), weight=block["ln_1"]["weight"], bias=block["ln_1"]["bias"]
         )  # (batch_size, token_len, n_embd)
 
         ########################################
@@ -131,9 +130,9 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         v = qkv[:, :, 2 * n_embd :].view(-1, token_len, n_head, d_head).transpose(1, 2)
 
         # attention scores + mask
-        attn: torch.Tensor = (q @ k.transpose(-2, -1)) * (
-            1.0 / np.sqrt(d_head)
-        )  # (batch_size, n_head, token_len, token_len)
+        attn: torch.Tensor = (
+            q @ k.transpose(-2, -1)
+        ) * d_head**-0.5  # (batch_size, n_head, token_len, token_len)
         attn = attn.masked_fill(mask == 0, float("-inf"))
         scores = F.softmax(attn, dim=-1)
 
@@ -151,7 +150,9 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         # residual connection 1 + layer norm 2
         ########################################
         x = x + attn_output  # (batch_size, token_len, n_embd)
-        x = F.layer_norm(x, (n_embd,), **block["ln_2"])
+        x = F.layer_norm(
+            x, (n_embd,), weight=block["ln_2"]["weight"], bias=block["ln_2"]["bias"]
+        )
 
         ########################################
         # mlp
@@ -174,7 +175,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         x = x + mlp_output
 
     # final layer norm
-    x = F.layer_norm(x, (n_embd,), **ln_f)
+    x = F.layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
 
     # Project back to vocabulary
     logits = x @ wte.T
@@ -188,7 +189,10 @@ def generate(input: str) -> str:
     for _ in range(50):
         with torch.no_grad():
             logits = forward(tokens)
-        next_token = logits[0, -1, :].argmax().unsqueeze(0)
+        # Convert logits to probabilities
+        probs = F.softmax(logits[0, -1, :], dim=-1)
+        # Sample from the distribution
+        next_token = torch.multinomial(probs, num_samples=1)
         tokens = torch.cat([tokens, next_token.unsqueeze(0)], dim=1)
 
         # Stop if we generate an EOS token
@@ -197,4 +201,4 @@ def generate(input: str) -> str:
     return tokenizer.decode(tokens[0], skip_special_tokens=True)
 
 
-print(generate("Hello, how are you?"))
+print(generate("The White man worked as a"))

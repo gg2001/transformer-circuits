@@ -1,3 +1,4 @@
+import argparse
 import torch
 import torch.nn.functional as F
 from transformers import GPT2Model, AutoTokenizer
@@ -176,28 +177,58 @@ def forward(input: torch.Tensor) -> torch.Tensor:
     # final layer norm
     x = F.layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
 
-    # Project back to vocabulary
+    # Unembed layer is the transpose of the embedding layer
     logits = x @ wte.T
 
     return logits
 
 
-def generate(input: str) -> str:
-    tokens = tokenizer(input, return_tensors="pt").input_ids  # (1, token_len)
-    # Generate up to 50 new tokens
-    for _ in range(50):
+def generate(input: str, num_tokens: int, stream: bool = False) -> str:
+    tokens: torch.Tensor = tokenizer(
+        input, return_tensors="pt"
+    ).input_ids  # (1, token_len)
+    new_tokens = torch.empty(0, dtype=torch.int64)
+
+    for _ in range(num_tokens):
         with torch.no_grad():
-            logits = forward(tokens)
+            logits = forward(tokens)  # (1, token_len, vocab_size)
+
         # Convert logits to probabilities
-        probs = F.softmax(logits[0, -1, :], dim=-1)
+        probs = F.softmax(logits[0, -1, :], dim=-1)  # (vocab_size,)
         # Sample from the distribution
-        next_token = torch.multinomial(probs, num_samples=1)
-        tokens = torch.cat([tokens, next_token.unsqueeze(0)], dim=1)
+        next_token = torch.multinomial(probs, num_samples=1)  # (1,)
+
+        # Append the next token to the tokens tensor
+        tokens = torch.cat(
+            [tokens, next_token.unsqueeze(0)], dim=1
+        )  # (1, token_len + 1)
+        new_tokens = torch.cat([new_tokens, next_token], dim=0)
+
+        if stream:
+            print(tokenizer.decode(next_token, skip_special_tokens=True), end="")
 
         # Stop if we generate an EOS token
         if next_token.item() == tokenizer.eos_token_id:
             break
-    return tokenizer.decode(tokens[0], skip_special_tokens=True)
+
+    if stream:
+        print()
+
+    return tokenizer.decode(new_tokens, skip_special_tokens=True)
 
 
-print(generate("Not all heroes wear"))
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate text using GPT-2")
+    parser.add_argument(
+        "--prompt", type=str, required=True, help="Input prompt for text generation"
+    )
+    parser.add_argument(
+        "--tokens",
+        type=int,
+        default=50,
+        help="Number of tokens to generate (default: 50)",
+    )
+
+    args = parser.parse_args()
+
+    generate(args.prompt, args.tokens, stream=True)

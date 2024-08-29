@@ -174,13 +174,15 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         ########################################
         # residual connection 2
         ########################################
-        x = x + mlp_output
+        x = x + mlp_output  # (batch_size, token_len, n_embd)
 
     # final layer norm
-    x = layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
+    x = layer_norm(
+        x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"]
+    )  # (batch_size, token_len, n_embd)
 
     # unembed layer is the transpose of the embedding layer
-    logits = x @ wte.T
+    logits = x @ wte.T  # (batch_size, token_len, vocab_size)
 
     return logits
 

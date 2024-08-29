@@ -192,8 +192,9 @@ def generate(input: str, num_tokens: int, stream: bool = False) -> str:
     new_tokens = torch.empty(0, dtype=torch.int64)
 
     for _ in range(num_tokens):
+        # Ensure the tokens fit in our context window
         with torch.no_grad():
-            logits = forward(tokens)  # (1, token_len, vocab_size)
+            logits = forward(tokens[:, -n_positions:])  # (1, token_len, vocab_size)
 
         # Convert logits to probabilities
         probs = softmax(logits[0, -1, :], dim=-1)  # (vocab_size,)
@@ -205,10 +206,6 @@ def generate(input: str, num_tokens: int, stream: bool = False) -> str:
             [tokens, next_token.unsqueeze(0)], dim=1
         )  # (1, token_len + 1)
         new_tokens = torch.cat([new_tokens, next_token], dim=0)
-
-        # Pop the first token if the length exceeds our context window
-        if tokens.shape[1] > n_positions:
-            tokens = tokens[:, 1:]
 
         if stream:
             print(tokenizer.decode(next_token, skip_special_tokens=True), end="")

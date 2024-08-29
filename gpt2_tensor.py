@@ -124,7 +124,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
             qkv[..., 2 * n_embd :],
         )  # (batch_size, token_len, n_embd)
 
-        # Separate the heads
+        # separate the heads
         q = q.view(batch_size, token_len, n_head, d_head).transpose(
             1, 2
         )  # (batch_size, n_head, token_len, d_head)
@@ -179,7 +179,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
     # final layer norm
     x = layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
 
-    # Unembed layer is the transpose of the embedding layer
+    # unembed layer is the transpose of the embedding layer
     logits = x @ wte.T
 
     return logits

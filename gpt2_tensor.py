@@ -1,6 +1,6 @@
 import argparse
 import torch
-import torch.nn.functional as F
+from torch.nn.functional import gelu, layer_norm, softmax
 from transformers import GPT2Model, AutoTokenizer
 from typing import TypedDict
 
@@ -105,7 +105,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         ########################################
         # layer norm 1
         ########################################
-        ln_1 = F.layer_norm(
+        ln_1 = layer_norm(
             x, (n_embd,), weight=block["ln_1"]["weight"], bias=block["ln_1"]["bias"]
         )  # (batch_size, token_len, n_embd)
 
@@ -136,7 +136,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
             q @ k.transpose(-2, -1)
         ) * d_head**-0.5  # (batch_size, n_head, token_len, token_len)
         attn = attn.masked_fill(mask[None, None, :, :] == 0, float("-inf"))
-        scores = F.softmax(attn, dim=-1)
+        scores = softmax(attn, dim=-1)
 
         heads_output = scores @ v  # (batch_size, n_head, token_len, d_head)
 
@@ -152,7 +152,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         # residual connection 1 + layer norm 2
         ########################################
         x = x + attn_output  # (batch_size, token_len, n_embd)
-        ln_2 = F.layer_norm(
+        ln_2 = layer_norm(
             x, (n_embd,), weight=block["ln_2"]["weight"], bias=block["ln_2"]["bias"]
         )
 
@@ -165,7 +165,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         mlp_output = (
             ln_2 @ mlp["c_fc_weight"] + mlp["c_fc_bias"]
         )  # (batch_size, token_len, d_mlp)
-        mlp_output = F.gelu(mlp_output)
+        mlp_output = gelu(mlp_output)
         # output layer
         mlp_output = (
             mlp_output @ mlp["c_proj_weight"] + mlp["c_proj_bias"]
@@ -177,7 +177,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         x = x + mlp_output
 
     # final layer norm
-    x = F.layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
+    x = layer_norm(x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"])
 
     # Unembed layer is the transpose of the embedding layer
     logits = x @ wte.T
@@ -196,7 +196,7 @@ def generate(input: str, num_tokens: int, stream: bool = False) -> str:
             logits = forward(tokens)  # (1, token_len, vocab_size)
 
         # Convert logits to probabilities
-        probs = F.softmax(logits[0, -1, :], dim=-1)  # (vocab_size,)
+        probs = softmax(logits[0, -1, :], dim=-1)  # (vocab_size,)
         # Sample from the distribution
         next_token = torch.multinomial(probs, num_samples=1)  # (1,)
 

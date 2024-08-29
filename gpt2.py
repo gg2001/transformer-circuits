@@ -120,7 +120,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         )  # (batch_size, token_len, n_embd * 3)
         q, k, v = qkv.split(n_embd, dim=-1)  # (batch_size, token_len, n_embd)
 
-        # Reshape q, k, v to separate the heads
+        # Separate the heads
         q = q.view(batch_size, token_len, n_head, d_head).transpose(
             1, 2
         )  # (batch_size, n_head, token_len, d_head)
@@ -137,10 +137,8 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         heads_output = scores @ v  # (batch_size, n_head, token_len, d_head)
 
         # merge heads + linear layer
-        concat_heads = (
-            heads_output.transpose(1, 2)
-            .contiguous()
-            .view(batch_size, token_len, n_embd)
+        concat_heads = heads_output.transpose(1, 2).reshape(
+            batch_size, token_len, n_embd
         )  # (batch_size, token_len, n_embd)
         attn_output = (
             concat_heads @ heads["c_proj_weight"] + heads["c_proj_bias"]
@@ -204,6 +202,10 @@ def generate(input: str, num_tokens: int, stream: bool = False) -> str:
         )  # (1, token_len + 1)
         new_tokens = torch.cat([new_tokens, next_token], dim=0)
 
+        # Pop the first token if the length exceeds our context window
+        if tokens.shape[1] > n_positions:
+            tokens = tokens[:, 1:]
+
         if stream:
             print(tokenizer.decode(next_token, skip_special_tokens=True), end="")
 
@@ -218,15 +220,17 @@ def generate(input: str, num_tokens: int, stream: bool = False) -> str:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate text using GPT-2")
+    default_num_tokens = 50
+
+    parser = argparse.ArgumentParser(description="GPT-2")
     parser.add_argument(
         "--prompt", type=str, required=True, help="Input prompt for text generation"
     )
     parser.add_argument(
         "--tokens",
         type=int,
-        default=50,
-        help="Number of tokens to generate (default: 50)",
+        default=default_num_tokens,
+        help=f"Number of tokens to generate (default: {default_num_tokens})",
     )
 
     args = parser.parse_args()

@@ -189,8 +189,11 @@ def forward(input: torch.Tensor) -> torch.Tensor:
 
 def generate(input: str, num_tokens: int, stream: bool = False) -> str:
     tokens: torch.Tensor = tokenizer(
-        tokenizer.bos_token + input, return_tensors="pt"
+        input, return_tensors="pt"
     ).input_ids  # (1, token_len)
+    tokens = torch.cat(
+        [torch.tensor([[tokenizer.bos_token_id]], dtype=torch.int64), tokens], dim=1
+    )
     new_tokens = torch.empty(0, dtype=torch.int64)
 
     for _ in range(num_tokens):

@@ -90,7 +90,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
     x = (
         wte[input]  # (batch_size, token_len, n_embd)
         + wpe[
-            torch.arange(token_len, device=device)  # [0, 1, 2, ..., T-1]
+            torch.arange(token_len, device=device)  # [0, 1, 2, ..., token_len-1]
         ]  # (token_len, n_embd)
     )  # (batch_size, token_len, n_embd)
 

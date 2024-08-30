@@ -174,7 +174,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         ########################################
         # residual connection 2
         ########################################
-        x = x + mlp_output  # (batch_size, token_len, n_embd)
+        x = x + mlp_output
 
     # final layer norm
     x = layer_norm(
@@ -189,7 +189,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
 
 def generate(input: str, num_tokens: int, stream: bool = False) -> str:
     tokens: torch.Tensor = tokenizer(
-        input, return_tensors="pt"
+        tokenizer.bos_token + input, return_tensors="pt"
     ).input_ids  # (1, token_len)
     new_tokens = torch.empty(0, dtype=torch.int64)
 

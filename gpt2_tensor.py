@@ -135,7 +135,7 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         attn: torch.Tensor = (
             q @ k.transpose(-2, -1)
         ) * d_head**-0.5  # (batch_size, n_head, token_len, token_len)
-        attn = attn.masked_fill(mask[None, None, :, :] == 0, float("-inf"))
+        attn = attn.masked_fill(mask == 0, float("-inf"))
         scores = softmax(attn, dim=-1)
 
         heads_output = scores @ v  # (batch_size, n_head, token_len, d_head)
@@ -181,19 +181,19 @@ def forward(input: torch.Tensor) -> torch.Tensor:
         x, (n_embd,), weight=ln_f["weight"], bias=ln_f["bias"]
     )  # (batch_size, token_len, n_embd)
 
-    # unembed layer is the transpose of the embedding layer
+    # unembed layer = transpose of the embedding layer
     logits = x @ wte.T  # (batch_size, token_len, vocab_size)
 
     return logits
 
 
 def generate(input: str, num_tokens: int, stream: bool = False) -> str:
-    tokens: torch.Tensor = tokenizer(
-        input, return_tensors="pt"
-    ).input_ids  # (1, token_len)
-    tokens = torch.cat(
-        [torch.tensor([[tokenizer.bos_token_id]], dtype=torch.int64), tokens], dim=1
-    )
+    tokens = torch.tensor([[tokenizer.bos_token_id]], dtype=torch.int64)
+    if input != "":
+        tokenized: torch.Tensor = tokenizer(
+            input, return_tensors="pt"
+        ).input_ids  # (1, token_len)
+        tokens = torch.cat([tokens, tokenized], dim=1)
     new_tokens = torch.empty(0, dtype=torch.int64)
 
     for _ in range(num_tokens):

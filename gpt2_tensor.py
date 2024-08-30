@@ -6,7 +6,8 @@ from typing import TypedDict
 
 MODEL_NAME = "gpt2"
 
-model = GPT2Model.from_pretrained(MODEL_NAME)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = GPT2Model.from_pretrained(MODEL_NAME).to(device)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, clean_up_tokenization_spaces=True)
 
 # Hyperparameters
@@ -48,41 +49,37 @@ class Block(TypedDict):
 
 
 state_dict = model.state_dict()
-wte: torch.Tensor = state_dict[
-    "wte.weight"
-]  # (vocab_size, n_embd), word token embeddings
-wpe: torch.Tensor = state_dict[
-    "wpe.weight"
-]  # (n_positions, n_embd), word position embeddings
-blocks: list[Block] = []  # transformer blocks
+wte: torch.Tensor = state_dict["wte.weight"].to(device)
+wpe: torch.Tensor = state_dict["wpe.weight"].to(device)
+blocks: list[Block] = []
 for i in range(n_layer):
     blocks.append(
         {
             "ln_1": {
-                "weight": state_dict[f"h.{i}.ln_1.weight"],
-                "bias": state_dict[f"h.{i}.ln_1.bias"],
+                "weight": state_dict[f"h.{i}.ln_1.weight"].to(device),
+                "bias": state_dict[f"h.{i}.ln_1.bias"].to(device),
             },
             "attn": {
-                "c_attn_weight": state_dict[f"h.{i}.attn.c_attn.weight"],
-                "c_attn_bias": state_dict[f"h.{i}.attn.c_attn.bias"],
-                "c_proj_weight": state_dict[f"h.{i}.attn.c_proj.weight"],
-                "c_proj_bias": state_dict[f"h.{i}.attn.c_proj.bias"],
+                "c_attn_weight": state_dict[f"h.{i}.attn.c_attn.weight"].to(device),
+                "c_attn_bias": state_dict[f"h.{i}.attn.c_attn.bias"].to(device),
+                "c_proj_weight": state_dict[f"h.{i}.attn.c_proj.weight"].to(device),
+                "c_proj_bias": state_dict[f"h.{i}.attn.c_proj.bias"].to(device),
             },
             "ln_2": {
-                "weight": state_dict[f"h.{i}.ln_2.weight"],
-                "bias": state_dict[f"h.{i}.ln_2.bias"],
+                "weight": state_dict[f"h.{i}.ln_2.weight"].to(device),
+                "bias": state_dict[f"h.{i}.ln_2.bias"].to(device),
             },
             "mlp": {
-                "c_fc_weight": state_dict[f"h.{i}.mlp.c_fc.weight"],
-                "c_fc_bias": state_dict[f"h.{i}.mlp.c_fc.bias"],
-                "c_proj_weight": state_dict[f"h.{i}.mlp.c_proj.weight"],
-                "c_proj_bias": state_dict[f"h.{i}.mlp.c_proj.bias"],
+                "c_fc_weight": state_dict[f"h.{i}.mlp.c_fc.weight"].to(device),
+                "c_fc_bias": state_dict[f"h.{i}.mlp.c_fc.bias"].to(device),
+                "c_proj_weight": state_dict[f"h.{i}.mlp.c_proj.weight"].to(device),
+                "c_proj_bias": state_dict[f"h.{i}.mlp.c_proj.bias"].to(device),
             },
         }
     )
-ln_f: LayerNorm = {  # final layer normalization, after the residual stream
-    "weight": state_dict["ln_f.weight"],
-    "bias": state_dict["ln_f.bias"],
+ln_f: LayerNorm = {
+    "weight": state_dict["ln_f.weight"].to(device),
+    "bias": state_dict["ln_f.bias"].to(device),
 }
 
 
@@ -93,12 +90,12 @@ def forward(input: torch.Tensor) -> torch.Tensor:
     x = (
         wte[input]  # (batch_size, token_len, n_embd)
         + wpe[
-            torch.arange(token_len)  # [0, 1, 2, ..., T-1]
+            torch.arange(token_len, device=device)  # [0, 1, 2, ..., T-1]
         ]  # (token_len, n_embd)
     )  # (batch_size, token_len, n_embd)
 
     # mask for causal attention
-    mask = torch.tril(torch.ones(token_len, token_len))
+    mask = torch.tril(torch.ones(token_len, token_len, device=device))
 
     # residual stream
     for block in blocks:
@@ -188,13 +185,13 @@ def forward(input: torch.Tensor) -> torch.Tensor:
 
 
 def generate(input: str, num_tokens: int, stream: bool = False) -> str:
-    tokens = torch.tensor([[tokenizer.bos_token_id]], dtype=torch.int64)
+    tokens = torch.tensor([[tokenizer.bos_token_id]], dtype=torch.int64, device=device)
     if input != "":
-        tokenized: torch.Tensor = tokenizer(
-            input, return_tensors="pt"
-        ).input_ids  # (1, token_len)
+        tokenized: torch.Tensor = tokenizer(input, return_tensors="pt").input_ids.to(
+            device
+        )  # (1, token_len)
         tokens = torch.cat([tokens, tokenized], dim=1)
-    new_tokens = torch.empty(0, dtype=torch.int64)
+    new_tokens = torch.empty(0, dtype=torch.int64, device=device)
 
     for _ in range(num_tokens):
         # Ensure the tokens fit in our context window
